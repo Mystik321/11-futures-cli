@@ -2,13 +2,15 @@ package ohm.softa.a11;
 
 import ohm.softa.a11.openmensa.OpenMensaAPI;
 import ohm.softa.a11.openmensa.OpenMensaAPIService;
+import ohm.softa.a11.openmensa.model.Canteen;
+import ohm.softa.a11.openmensa.model.Meal;
+import ohm.softa.a11.openmensa.model.PageInfo;
+import ohm.softa.a11.openmensa.model.State;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Locale;
-import java.util.Scanner;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 
 /**
@@ -55,12 +57,55 @@ public class App {
 		 * at first get a page without an index to be able to extract the required pagination information
 		 * afterwards you can iterate the remaining pages
 		 * keep in mind that you should await the process as the user has to select canteen with a specific id */
+
+		PageInfo pageInfo = null;
+
+		try {
+			pageInfo =  openMensaAPI.getCanteens().thenApplyAsync(PageInfo::extractFromResponse).get();
+		} catch (InterruptedException | ExecutionException e) {
+			System.out.println("Irgendwas ging schief: " + e);
+		}
+
+		final int totalPages = pageInfo.getTotalCountOfPages();
+		final int currentPage = pageInfo.getCurrentPageIndex();
+		List<Canteen> canteens = new ArrayList<>();
+
+		for (int n = currentPage; n <= totalPages; n++) {
+			try {
+				canteens.addAll(openMensaAPI.getCanteens(n).get());
+			} catch (InterruptedException | ExecutionException e) {
+				System.out.println("Irgendwas ging schief: " + e);
+			}
+		}
+
+		System.out.println(canteens);
 	}
 
 	private static void printMeals() {
 		/* TODO fetch all meals for the currently selected canteen
 		 * to avoid errors retrieve at first the state of the canteen and check if the canteen is opened at the selected day
 		 * don't forget to check if a canteen was selected previously! */
+
+		State state = null;
+
+		try {
+			state =  openMensaAPI.getCanteenState(currentCanteenId, dateFormat.format(currentDate.getTime())).get();
+		} catch (InterruptedException | ExecutionException e) {
+			System.out.println("Irgendwas ging schief: " + e);
+		}
+
+		if (currentCanteenId > 0 && !state.isClosed()) {
+			List<Meal> meals = new ArrayList<>();
+			try {
+				meals.addAll(openMensaAPI.getMeals(currentCanteenId, dateFormat.format(currentDate.getTime())).get());
+			} catch (InterruptedException | ExecutionException e) {
+				System.out.println("Irgendwas ging schief: " + e);
+			}
+			System.out.println(meals);
+		}
+
+		if (state.isClosed())
+			System.out.println("[]");
 	}
 
 	/**
